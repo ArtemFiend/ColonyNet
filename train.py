@@ -15,9 +15,24 @@ from colonyseg.losses import loss_total
 from colonyseg.post.watershed import postprocess_watershed
 from colonyseg.metrics.instance_metrics import instance_scores
 
+IMG_EXTS = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp")
+
 def load_yaml(path: str):
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+def collect_pair_ids(images_dir: str, instances_dir: str) -> list[str]:
+    image_ids = {
+        os.path.splitext(p)[0]
+        for p in os.listdir(images_dir)
+        if p.lower().endswith(IMG_EXTS)
+    }
+    instance_ids = {
+        os.path.splitext(p)[0]
+        for p in os.listdir(instances_dir)
+        if p.lower().endswith(".png")
+    }
+    return sorted(image_ids & instance_ids)
 
 def main():
     ap = argparse.ArgumentParser()
@@ -38,17 +53,32 @@ def main():
     val_tf = build_val_tf(img_size)
 
     # IDs list
-    all_imgs = sorted([p for p in os.listdir(cfg["data"]["train_images"]) if p.lower().endswith((".png",".jpg",".jpeg"))])
-    all_ids = [os.path.splitext(p)[0] for p in all_imgs]
-    train_ids, val_ids = split_ids(all_ids, float(cfg["data"]["val_split"]), seed=int(cfg.get("seed", 42)))
+    train_images_dir = cfg["data"]["train_images"]
+    train_instances_dir = cfg["data"]["train_instances"]
+    val_images_dir = cfg["data"]["val_images"]
+    val_instances_dir = cfg["data"]["val_instances"]
+    same_train_val = (
+        os.path.abspath(train_images_dir) == os.path.abspath(val_images_dir)
+        and os.path.abspath(train_instances_dir) == os.path.abspath(val_instances_dir)
+    )
 
+    if same_train_val:
+        all_ids = collect_pair_ids(train_images_dir, train_instances_dir)
+        train_ids, val_ids = split_ids(all_ids, float(cfg["data"]["val_split"]), seed=int(cfg.get("seed", 42)))
+    else:
+        train_ids = collect_pair_ids(train_images_dir, train_instances_dir)
+        val_ids = collect_pair_ids(val_images_dir, val_instances_dir)
+
+    target_cfg = cfg.get("targets", None)
+    train_repeat = int(cfg["data"].get("train_repeat", 1))
     train_ds = ImageInstancesDataset(
         cfg["data"]["train_images"], cfg["data"]["train_instances"],
-        transform=train_tf, img_size=img_size, out_stride=out_stride, ids=train_ids
+        transform=train_tf, img_size=img_size, out_stride=out_stride,
+        ids=train_ids, target_cfg=target_cfg, repeat=train_repeat
     )
     val_ds = ImageInstancesDataset(
         cfg["data"]["val_images"], cfg["data"]["val_instances"],
-        transform=val_tf, img_size=img_size, out_stride=out_stride, ids=val_ids
+        transform=val_tf, img_size=img_size, out_stride=out_stride, ids=val_ids, target_cfg=target_cfg
     )
 
     train_loader = DataLoader(train_ds, batch_size=int(cfg["train"]["batch_size"]), shuffle=True,
@@ -59,6 +89,7 @@ def main():
     # Model
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = ColonyNet(backbone_id=cfg["model"]["backbone_id"], fpn_dim=int(cfg["model"]["fpn_dim"])).to(device)
+    amp_enabled = bool(cfg["train"]["amp"]) and device == "cuda"
 
     # Optimizer with differential LR
     lr_head = float(cfg["train"]["lr_head"])
@@ -83,7 +114,7 @@ def main():
         weight_decay=wd
     )
 
-    scaler = torch.cuda.amp.GradScaler(enabled=bool(cfg["train"]["amp"]))
+    scaler = torch.amp.GradScaler(device, enabled=amp_enabled)
 
     best_f1 = -1.0
     freeze_epochs = int(cfg["train"]["freeze_backbone_epochs"])
@@ -106,9 +137,12 @@ def main():
             y_boundary = batch["y_boundary"].to(device, non_blocking=True)
 
             optim.zero_grad(set_to_none=True)
-            with torch.cuda.amp.autocast(enabled=bool(cfg["train"]["amp"])):
+            with torch.amp.autocast(device_type=device, enabled=amp_enabled):
                 pred = model(x)
-                loss, parts = loss_total(pred, y_sem, y_center, y_boundary)
+                loss_weights = cfg["train"].get("loss_weights", None)
+                boundary_dice = float(cfg["train"].get("boundary_dice", 0.0))
+                loss, parts = loss_total(pred, y_sem, y_center, y_boundary,
+                                         weights=loss_weights, boundary_dice=boundary_dice)
 
             scaler.scale(loss).backward()
             scaler.step(optim)
