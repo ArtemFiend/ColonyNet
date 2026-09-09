@@ -1,19 +1,11 @@
-# Безопасность и данные
+# Security and data handling
 
-## Локальный анализ
+ColonyNet processes images locally. Before Ultralytics is imported, the application enables its offline mode, disables supported telemetry and tracking integrations, and redirects library preferences to a temporary ColonyNet directory. The application contains no upload endpoint, user account, analytics SDK, or cloud-storage integration.
 
-Desktop-приложение и `full_pipline.full_pipeline` включают offline-режим до импорта Ultralytics и отключают его синхронизацию и интеграции журналирования в текущем процессе. Служебные настройки Ultralytics направляются во временный каталог ColonyNet, а не в глобальный профиль пользователя. В приложении нет API загрузки снимков, аккаунтов или облачного хранилища. Установка зависимостей требует доступа к сети; исследовательские notebooks и обучение имеют отдельные настройки MLflow и загрузки моделей.
+Analysis outputs can contain source images, filenames, masks, and derived measurements. They are written only to the selected output directory. Git ignores the standard model, input, output, experiment, database, and build artifacts. This does not encrypt files or prevent an operating-system backup or third-party sync client from copying them.
 
-Результаты содержат исходные снимки, маски, имена файлов и признаки. Они сохраняются локально в выбранной папке; `.gitignore` исключает стандартные каталоги данных и результатов. Это не шифрование и не защита от синхронизации папки сторонним ПО. Публикуйте исходники через `tools/prepare_release.py`, который убирает выводы и вложения notebooks и проверяет распространённые форматы секретов. Автоматическая проверка не гарантирует обнаружение любых конфиденциальных данных в исходном тексте.
+PyTorch `.pt` files can contain executable pickle objects. Only load checkpoints from a trusted source. The repository contains expected names and checksums, but does not distribute model weights.
 
-## Модели
+The repository check blocks common credential formats, notebook outputs, model files, databases, archives, executables, logs, and office documents. Automated scanning reduces accidental disclosure; it cannot prove that arbitrary source text contains no confidential information.
 
-Файлы PyTorch `.pt` могут содержать исполняемые pickle-объекты. Загружайте только доверенные веса. Приложение проверяет наличие локальных файлов; скачивание отсутствующих весов не является частью рабочего процесса. Контрольные суммы проверяют целостность, но сами по себе не доказывают доверенность источника.
-
-## Утечка между выборками
-
-`train.py` проверяет пересечение исходных идентификаторов train/val. Суффиксы `__softNN`, созданные `augment_dataset_soft_x5.py`, объединяются с исходным снимком при разбиении. Эта проверка не обнаруживает копии с произвольно изменёнными именами, соседние кадры и разные фотографии одной чашки. Для оценки качества требуется разделение по физическим чашкам/экспериментам и отдельный неизменяемый test-набор. Метрики старых каталогов `*_aug_leaky` нельзя считать независимой оценкой.
-
-## Сообщение об уязвимости
-
-Не прикладывайте снимки, ключи, базы MLflow и полные логи к публичным issues. Используйте приватный канал владельца репозитория; если в GitHub доступно private vulnerability reporting, отправьте отчёт через вкладку Security. При раскрытии токена сначала отзовите его: удаление файла из новой версии не удаляет старые коммиты.
+Do not attach private laboratory images, access tokens, model checkpoints, complete logs, or experiment databases to a public issue. Revoke an exposed credential before removing it from Git history.

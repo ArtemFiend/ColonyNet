@@ -1,217 +1,122 @@
-![ColonyNet](docs/assets/colonynet.svg)
+<p align="center">
+  <img src="docs/assets/colonynet.svg" alt="ColonyNet" width="100%">
+</p>
 
-# ColonyNet
+<p align="center">
+  <strong>Local computer vision for Petri-dish colony analysis.</strong><br>
+  Detection, instance segmentation, interpretable features, and anomaly review in one Windows application.
+</p>
 
-Локальное Windows-приложение для анализа изображений чашек Петри: поиск чашки, сегментация отдельных колоний, морфологические признаки и интерпретируемый поиск аномалий. В репозитории также сохранены инструменты подготовки датасетов и обучения SegFormer/YOLO.
+<p align="center">
+  <a href="../../actions/workflows/checks.yml"><img alt="CI" src="https://github.com/ArtemFiend/ColonyNet/actions/workflows/checks.yml/badge.svg"></a>
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.10%20%7C%203.11-3776AB?logo=python&logoColor=white">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11">
+  <img alt="Processing" src="https://img.shields.io/badge/image_processing-local-0F766E">
+</p>
 
-**[Запуск приложения](#быстрый-запуск) · [Безопасность](SECURITY.md) · [Сборка Windows](full_pipline/EXE_README.md) · [Полный pipeline](full_pipline/README.md)**
+## What it does
 
-| Возможность | Что получает пользователь |
+ColonyNet turns a raw photograph into a reviewable laboratory report. It finds the Petri dish, isolates individual colonies, measures their morphology and appearance, and highlights objects that differ from their local context.
+
+| Stage | Output |
 | --- | --- |
-| Анализ снимков и папок | Детекция чашки → crop 736 × 736 → instance segmentation |
-| Просмотр по этапам | Исходник, рамка чашки, crop, цветные маски и аномалии |
-| Отчёты | CSV, Excel, изображения этапов и необязательные фрагменты колоний |
-| Контроль обработки | Прогресс, остановка после текущего снимка, отдельная папка запуска |
-| Локальная работа | Без загрузки снимков на сервер; телеметрия inference отключена |
+| Petri detection | Dish bounding box and normalized 736 × 736 crop |
+| Colony segmentation | Non-overlapping instance masks |
+| Feature extraction | Shape, colour, texture, neighbourhood, and mask-quality features |
+| Anomaly analysis | Ranked candidates with human-readable evidence |
+| Reporting | Stage images, CSV tables, and an optional Excel workbook |
 
-## Быстрый запуск
+```mermaid
+flowchart LR
+    A[Raw photo] --> B[Petri detector]
+    B --> C[Normalized crop]
+    C --> D[Instance segmentation]
+    D --> E[Feature extraction]
+    E --> F[Robust anomaly scoring]
+    F --> G[Visual review + reports]
+```
 
-Нужны Windows, Python 3.10 и **две обученные модели**. Веса и приватные датасеты не входят в Git. Поместите доверенные веса в `full_pipline/models/`:
+Everything runs on the workstation. The inference process enables offline mode before loading Ultralytics and disables supported telemetry and experiment-tracking integrations. See [SECURITY.md](SECURITY.md) for the exact boundary.
+
+## Desktop application
+
+The interface accepts individual images or folders, shows every processing stage, reports progress, and creates a separate directory for each run. Processing can be stopped safely after the current image.
+
+<p align="center">
+  <img src="docs/assets/app.png" alt="ColonyNet desktop application" width="100%">
+</p>
+
+## Quick start
+
+Requirements: Windows, Python 3.10 or 3.11, and two trusted local model files.
+
+```powershell
+git clone https://github.com/ArtemFiend/ColonyNet.git
+cd ColonyNet
+py -3.10 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+```
+
+Place the models in `src/colonynet/models/`:
+
+| File | SHA-256 of the validated local model |
+| --- | --- |
+| `petri_detector_yolo26s_best.pt` | `adc76b3226de7f219d8da9a3afecd45d9d4729b80ce6e44a9f99341d5108223f` |
+| `colony_yolo26x_seg_best.pt` | `4aa01bb1c43c1484820c22faafbfa5553cc255c3813595beee887a787f67e2f5` |
+
+Model weights are deliberately absent from the repository. PyTorch checkpoints can contain executable objects; only use files you trust.
+
+```powershell
+# Validate the installation and local models
+.\.venv\Scripts\python.exe -m colonynet.app --self-test
+
+# Open the desktop application
+.\run.ps1
+
+# Process one image without the GUI
+.\.venv\Scripts\python.exe -m colonynet.app --run-once "plate.jpg" --output "outputs/demo"
+```
+
+PyTorch installation differs by CPU/CUDA platform. If GPU acceleration is required, install the matching official PyTorch build before `pip install -e .`.
+
+## Project structure
 
 ```text
-full_pipline/models/
-├── petri_detector_yolo26s_best.pt
-└── colony_yolo26x_seg_best.pt
+src/colonynet/
+├── app.py          # Windows desktop interface
+├── pipeline.py     # Detection, segmentation, features, and scoring
+├── runtime.py      # Offline defaults and safe file handling
+└── models/         # Local weights (ignored by Git)
+examples/           # Minimal Python usage
+packaging/          # PyInstaller configuration
+scripts/            # Repository safety checks
+tests/              # Fast safeguards and integration tests
+docs/               # Architecture and model limitations
 ```
 
-```powershell
-py -3.10 -m venv .venv-app
-.\.venv-app\Scripts\python.exe -m pip install -r requirements-app.txt
-.\.venv-app\Scripts\python.exe -m full_pipline.colony_pipeline_app --self-test
-.\start_colonynet.ps1
-```
+## Validation
 
-В интерфейсе добавьте снимки, выберите папку результатов и нажмите **«Начать анализ»**. Снимки с одинаковыми именами без расширения нужно переименовать: приложение проверяет это до запуска. Повторный запуск GUI создаёт новый каталог `analysis_<дата>_<id>`.
+The checked release was exercised with an end-to-end local image run, desktop-widget smoke test, dependency audit, and automated safeguards for:
 
-Для одного изображения без интерфейса:
-
-```powershell
-.\.venv-app\Scripts\python.exe -m full_pipline.colony_pipeline_app --run-once "image.jpg" --output "outputs/demo"
-```
-
-Для GPU установите подходящую пару PyTorch/torchvision для своего CUDA-окружения перед остальными зависимостями. На CPU большая модель сегментации и проверка устойчивости аномалий могут работать заметно дольше. `--self-test` проверяет наличие весов; полный запуск проверяет их совместимость и вычисления.
-
-## Данные и воспроизводимость
-
-- Исходные снимки, результаты, веса, базы MLflow и сборки исключены из Git.
-- `tools/prepare_release.py .release/source` создаёт отдельную копию исходников, очищает выводы/вложения notebooks и проверяет распространённые форматы секретов, сохраняя оригинальные notebooks на компьютере.
-- Разбиение `train.py` группирует оригинал и его `__softNN`-аугментации; явные списки train/val проверяются на пересечения исходных идентификаторов.
-- Поиск аномалий — инструмент исследовательского анализа. Выделенный объект требует проверки; score не является вероятностью биологической аномалии. Независимые метрики нужно получать на отдельном test-наборе.
+- offline import behaviour;
+- output filename collisions;
+- spreadsheet formula injection;
+- secret and binary-artifact publication;
+- empty-detection handling.
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
-.\.venv\Scripts\python.exe tools/smoke_desktop.py
+.\.venv\Scripts\python.exe scripts/check_repository.py
 ```
 
-## Структура проекта
+An anomaly score is a review priority, not a biological diagnosis or probability. Read [docs/MODEL_CARD.md](docs/MODEL_CARD.md) before interpreting results.
 
-```text
-full_pipline/   Windows GUI, inference и сборка EXE
-colonyseg/     Модели SegFormer, данные, метрики, watershed
-configs/       Конфигурации обучения и последовательных запусков
-tools/         Подготовка данных, оценка, экспорт чистых исходников
-tests/         Проверки изоляции выборок и безопасной работы с файлами
-notebooks/     Исследовательские сценарии
+## Windows build
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install pyinstaller
+.\build.ps1
+.\dist\ColonyNet\ColonyNet.exe --self-test
 ```
 
-## Обучение и исследовательские инструменты
-
-### SegFormer MiT-B2/B3 + sem/center/boundary + watershed
-
-ColonyNet trains instance segmentation with 3 heads:
-- `sem`: foreground (colony/cell) vs background
-- `center`: instance center heatmap
-- `boundary`: boundaries between instances
-
-Instances are recovered with marker-controlled watershed.
-
-## Requirements
-```bash
-pip install -r requirements.txt
-```
-
-## Expected Dataset Format
-Each dataset must be a pair of folders:
-- `images/*` (`.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp`)
-- `instances/*.png` (integer instance ids)
-
-Mask format:
-- `0` = background
-- `1..N` = instance IDs
-- `uint16` PNG is supported and recommended for many objects
-
-## Training
-Run training with a config:
-```bash
-python train.py --config configs/train_trainable_pool_mit_b3.yaml
-```
-
-Most used configs:
-- `configs/train_trainable_pool_mit_b2.yaml`
-- `configs/train_trainable_pool_mit_b3.yaml`
-- `configs/train_unified_mit_b2.yaml`
-- `configs/train_unified_mit_b3.yaml`
-- `configs/train_unified_petri_mit_b2.yaml`
-- `configs/train_unified_petri_mit_b3.yaml`
-- `configs/train_cups_mit_b2.yaml`
-- `configs/train_cups_mit_b3.yaml`
-
-For `train_trainable_pool_*` configs, training/validation use:
-- `trainable_pool/images`
-- `trainable_pool/instances`
-
-Validation split is controlled by `data.val_split` in config.
-
-Model selection can be defined explicitly in YAML:
-```yaml
-model:
-  model_variant: mit-b3        # shortcut: mit-b2/mit-b3 or full HF id
-  backbone_id: nvidia/mit-b3   # optional if model_variant is enough
-  fpn_dim: 256
-```
-
-CLI overrides are available too:
-```bash
-python train.py --config configs/train_trainable_pool_mit_b3.yaml --model_variant mit-b2
-python train.py --config configs/train_trainable_pool_mit_b3.yaml --model_variant facebook/convnext-tiny-224
-python train.py --config configs/train_trainable_pool_mit_b3.yaml --backbone_id nvidia/mit-b3
-```
-
-### Pipeline Runner
-For sequential multi-stage runs (including two-stage and notebook pipelines), use:
-```bash
-python tools/run_pipeline.py --pipeline <name_or_yaml>
-```
-
-Built-in pipeline presets:
-- `two_stage_mit_b3` -> `configs/pipelines/two_stage_mit_b3.yaml`
-- `all_train_configs` -> `configs/pipelines/all_train_configs.yaml`
-- `two_stage_notebooks` -> `configs/pipelines/two_stage_notebooks.yaml`
-
-Dedicated MLflow model presets:
-- `configs/mlflow_models/mit_b2/*`
-- `configs/mlflow_models/mit_b3/*`
-- `configs/mlflow_models/unetpp/*`
-- all-in-one: `configs/mlflow_models/run_all.yaml`
-
-Examples:
-```bash
-python tools/run_pipeline.py --pipeline two_stage_mit_b3 --mlflow --mlflow_experiment colony_segmentation
-python tools/run_pipeline.py --pipeline all_train_configs --model_variant mit-b3 --run_name_suffix exp01
-python tools/run_pipeline.py --pipeline two_stage_notebooks
-python tools/run_pipeline.py --pipeline configs/mlflow_models/run_all.yaml --continue_on_error
-```
-
-Pipeline artifacts are stored in:
-- `runs/pipelines/<pipeline_name>_<timestamp>/summary.json`
-
-For notebook stages, `jupyter`/`nbconvert` must be installed.
-
-### Training With MLflow
-Example config with MLflow + test image segmentation check:
-- `configs/train_trainable_pool_mit_b3_mlflow.yaml`
-
-Start MLflow server (optional, if using local UI):
-```bash
-mlflow server --host 127.0.0.1 --port 5000
-```
-
-Run training with MLflow from config:
-```bash
-python train.py --config configs/train_trainable_pool_mit_b3_mlflow.yaml
-```
-
-CLI overrides are also available:
-```bash
-python train.py --config configs/train_trainable_pool_mit_b3.yaml --mlflow --mlflow_tracking_uri http://127.0.0.1:5000 --mlflow_experiment colony_segmentation
-```
-
-What is logged:
-- Params from YAML config
-- Epoch metrics (`train_loss`, `val_f1`, `val_merge`, `val_split`, etc.)
-- Artifacts: `best.pt`, `last.pt`, `history.json`, `history.png`
-- Optional test segmentation artifacts and metrics from `test_seg` config section
-
-## Inference
-```bash
-python infer.py --ckpt runs/<run_name>/best.pt --input_dir trainable_pool/images --out_dir runs/demo_preds
-```
-
-## Test Image Segmentation Evaluation
-Run petri-crop + inference + watershed on a single image and compare with reference masks:
-```bash
-python tools/eval_test_seg.py --ckpt runs/<run_name>/best.pt --image_path test_seg/IMG_4677.jpg --reference_path test_seg/IMG_4677 --out_dir runs/<run_name>/test_seg_eval --mask_outside
-```
-
-Artifacts include:
-- `pred_labels.png`
-- `pred_overlay.png`
-- `gt_labels.png` (if reference provided)
-- `agreement_map.png` (TP/FP/FN)
-- `comparison_panel.png`
-- `report.json`
-
-## Dataset Conversion Utilities
-- DSB2018 -> instance masks:
-```bash
-python tools/convert_dsb2018.py --dsb_root /path/to/stage1_train --out_root data/dsb2018
-```
-- Build merged training pool:
-```bash
-python tools/build_trainable_pool.py --data_root data --all_root all_datasets --stage1_root stage1_train --out_root trainable_pool
-```
-
-## Notes
-- Model heads predict at `1 / out_stride` resolution (`out_stride=4` by default).
-- Ground-truth instances are downscaled with nearest-neighbor interpolation before target building.
-- Watershed postprocessing thresholds are configured in each training YAML under `post`.
+The generated `dist/` directory and embedded weights are excluded from Git.

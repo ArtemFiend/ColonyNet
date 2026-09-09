@@ -1,35 +1,34 @@
-# Credentials and local configuration
+# Secrets and local configuration
 .env
 .env.*
 !.env.example
 *.pem
 *.key
 credentials*.json
-.codex/
-.agents/
-# Python and generated applications
+
+# Python
 .venv/
-.venv-app/
 venv/
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
 .ruff_cache/
-build/
-dist/
-*.egg-info/
-.release/
-/github-ready/
-/ColonyNet-GitHub-Ready/
-/ColonyNet-GitHub-Ready.zip
-# Private datasets, images, checkpoints and experiment artifacts
+
+# Models and exports
 *.pt
 *.pt.*
 *.pth
 *.onnx
 *.safetensors
+build/
+dist/
+
+# Images, data, and reports
+data/
+outputs/
+runs/
 *.db
-*.db-*
 *.sqlite*
 *.log
 *.zip
@@ -42,26 +41,3 @@ dist/
 *.png
 *.bmp
 !docs/assets/*.png
-all_datasets/
-/data/
-*dataset*/
-stage1_train/
-trainable_pool/
-cropped_*/
-Petri_curcle/
-supervisely_png/
-test_seg/
-runs*/
-outputs/
-mlartifacts/
-mlruns*/
-experiments/
-notebooks/outputs/
-Картинки/
-Петри*/
-Новая папка*/
-презентация/
-датасеты_чашки/
-mlflow*.csv
-tmp_*.html
-.ipynb_checkpoints/

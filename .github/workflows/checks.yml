@@ -1,18 +1,26 @@
-name: Source checks
-on: [push, pull_request]
+name: Quality
+
+on:
+  push:
+  pull_request:
+
 permissions:
   contents: read
+
 jobs:
-  checks:
+  source:
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
+      PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-      - name: Compile Python sources
-        run: python -m compileall -q colonyseg full_pipline tools tests train.py infer.py
-      - name: Test split isolation and filesystem safeguards
+          python-version: "3.11"
+      - name: Compile source
+        run: python -m compileall -q src scripts examples tests
+      - name: Run safeguards
         run: python -m unittest discover -s tests -v
-      - name: Check publication hygiene
-        run: python tools/check_repository.py
+      - name: Check repository hygiene
+        run: python scripts/check_repository.py

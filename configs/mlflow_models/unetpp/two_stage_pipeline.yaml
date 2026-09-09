@@ -1,9 +1,0 @@
-name: mlflow_unetpp_two_stage_notebook
-description: Execute two-stage UNet++ notebook.
-
-stages:
-  - name: unetpp_two_stage
-    type: notebook
-    notebook: train_two_stage_unetpp.ipynb
-    output_notebook: train_two_stage_unetpp.executed.ipynb
-    timeout_sec: 0
