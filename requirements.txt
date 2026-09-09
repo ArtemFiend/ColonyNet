@@ -8,4 +8,4 @@ pyyaml>=6.0
 tqdm>=4.66
 transformers>=4.40
 matplotlib>=3.8
-mlflow>=2.12
+mlflow>=3.16.0
