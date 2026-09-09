@@ -1,0 +1,48 @@
+run_name: colony_stage2_finetune_cups_mit_b3
+seed: 42
+
+data:
+  train_images: trainable_pool/images
+  train_instances: trainable_pool/instances
+  val_images: trainable_pool/images
+  val_instances: trainable_pool/instances
+  train_ids_file: data/splits/stage2_finetune_train_ids.txt
+  val_ids_file: data/splits/stage2_finetune_val_ids.txt
+  val_split: 0.15
+  train_repeat: 2
+  img_size: 512
+  out_stride: 4
+
+targets:
+  boundary_thickness: 4
+  sigma_min: 2.0
+  sigma_max: 6.0
+
+model:
+  backbone_id: nvidia/mit-b3
+  fpn_dim: 256
+
+train:
+  init_ckpt: runs/colony_stage1_pretrain_no_cups_mit_b3/best.pt
+  epochs: 35
+  batch_size: 4
+  num_workers: 4
+  lr_head: 1.5e-4
+  lr_backbone: 1.0e-5
+  weight_decay: 1.0e-2
+  amp: true
+  freeze_backbone_epochs: 4
+  iou_thr: 0.5
+  loss_weights:
+    sem: 1.0
+    center: 0.8
+    boundary: 2.2
+  boundary_dice: 0.9
+
+post:
+  t_sem: 0.48
+  t_center: 0.28
+  min_distance: 3
+  lambda_boundary: 4.2
+  area_min: 4
+  area_max: 25000

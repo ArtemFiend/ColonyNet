@@ -1,0 +1,54 @@
+run_name: mlflow_mit_b2_stage1_pretrain
+seed: 42
+
+data:
+  train_images: trainable_pool/images
+  train_instances: trainable_pool/instances
+  val_images: trainable_pool/images
+  val_instances: trainable_pool/instances
+  train_ids_file: data/splits/stage1_pretrain_train_ids.txt
+  val_ids_file: data/splits/stage1_pretrain_val_ids.txt
+  val_split: 0.15
+  train_repeat: 1
+  img_size: 512
+  out_stride: 4
+
+targets:
+  boundary_thickness: 4
+  sigma_min: 2.0
+  sigma_max: 6.0
+
+model:
+  model_variant: mit-b2
+  backbone_id: nvidia/mit-b2
+  fpn_dim: 256
+
+train:
+  epochs: 30
+  batch_size: 4
+  num_workers: 4
+  lr_head: 3.0e-4
+  lr_backbone: 3.0e-5
+  weight_decay: 1.0e-2
+  amp: true
+  freeze_backbone_epochs: 8
+  iou_thr: 0.5
+  loss_weights:
+    sem: 1.0
+    center: 0.7
+    boundary: 2.0
+  boundary_dice: 0.8
+
+post:
+  t_sem: 0.48
+  t_center: 0.30
+  min_distance: 5
+  lambda_boundary: 4.0
+  area_min: 16
+  area_max: 25000
+
+mlflow:
+  enabled: true
+  tracking_uri: http://127.0.0.1:5000
+  experiment: colony_models
+  run_name: mit_b2_stage1_pretrain

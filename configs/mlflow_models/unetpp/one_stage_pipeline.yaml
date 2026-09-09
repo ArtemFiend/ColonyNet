@@ -1,0 +1,9 @@
+name: mlflow_unetpp_one_stage_notebook
+description: Execute one-stage UNet++ notebook.
+
+stages:
+  - name: unetpp_one_stage
+    type: notebook
+    notebook: train_unified_unetpp.ipynb
+    output_notebook: train_unified_unetpp.executed.ipynb
+    timeout_sec: 0

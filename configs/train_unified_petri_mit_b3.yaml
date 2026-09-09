@@ -1,0 +1,44 @@
+run_name: colony_unified_petri_mit_b3
+seed: 42
+
+data:
+  train_images: data/unified_petri/images
+  train_instances: data/unified_petri/instances
+  val_images: data/unified_petri/images
+  val_instances: data/unified_petri/instances
+  val_split: 0.15
+  img_size: 512
+  out_stride: 4
+
+targets:
+  boundary_thickness: 3
+  sigma_min: 2.0
+  sigma_max: 6.0
+
+model:
+  backbone_id: nvidia/mit-b3
+  fpn_dim: 256
+
+train:
+  epochs: 25
+  batch_size: 4
+  num_workers: 4
+  lr_head: 3.0e-4
+  lr_backbone: 3.0e-5
+  weight_decay: 1.0e-2
+  amp: true
+  freeze_backbone_epochs: 8
+  iou_thr: 0.5
+  loss_weights:
+    sem: 1.0
+    center: 0.5
+    boundary: 1.5
+  boundary_dice: 0.5
+
+post:
+  t_sem: 0.5
+  t_center: 0.35
+  min_distance: 6
+  lambda_boundary: 3.0
+  area_min: 20
+  area_max: 20000

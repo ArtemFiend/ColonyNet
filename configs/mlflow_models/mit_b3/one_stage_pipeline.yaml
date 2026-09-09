@@ -1,0 +1,7 @@
+name: mlflow_mit_b3_one_stage
+description: MLflow-ready one-stage training for mit-b3.
+
+stages:
+  - name: mit_b3_one_stage
+    type: train_config
+    config: one_stage.yaml

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import os
 import glob
-import random
+from .splits import split_ids
 import numpy as np
 import cv2
 import torch
@@ -27,12 +27,16 @@ class ImageInstancesDataset(Dataset):
         img_size: int,
         out_stride: int = 4,
         ids: list[str] | None = None,
+        target_cfg: dict | None = None,
+        repeat: int = 1,
     ):
         self.images_dir = images_dir
         self.instances_dir = instances_dir
         self.transform = transform
         self.img_size = img_size
         self.out_stride = out_stride
+        self.target_cfg = target_cfg or {}
+        self.repeat = max(1, int(repeat))
 
         if ids is None:
             self.images = _list_images(images_dir)
@@ -63,9 +67,11 @@ class ImageInstancesDataset(Dataset):
             raise RuntimeError(f"No samples found in {images_dir} + {instances_dir}")
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.samples) * self.repeat
 
     def __getitem__(self, idx: int):
+        if self.repeat > 1:
+            idx = idx % len(self.samples)
         _id, img_path, inst_path = self.samples[idx]
         img_bgr = cv2.imread(img_path, cv2.IMREAD_COLOR)
         if img_bgr is None:
@@ -85,7 +91,7 @@ class ImageInstancesDataset(Dataset):
 
         H, W = inst_t.shape[:2]
         out_h, out_w = H // self.out_stride, W // self.out_stride
-        t = make_targets_from_instances(inst_t, out_h, out_w)
+        t = make_targets_from_instances(inst_t, out_h, out_w, **self.target_cfg)
 
         # to torch
         y_sem = torch.from_numpy(t["sem"]).unsqueeze(0)        # 1, h, w
@@ -100,12 +106,3 @@ class ImageInstancesDataset(Dataset):
             "y_center": y_center,
             "y_boundary": y_boundary,
         }
-
-def split_ids(all_ids: list[str], val_fraction: float, seed: int = 42):
-    rng = random.Random(seed)
-    ids = all_ids[:]
-    rng.shuffle(ids)
-    n_val = max(1, int(len(ids) * val_fraction))
-    val_ids = ids[:n_val]
-    train_ids = ids[n_val:]
-    return train_ids, val_ids
