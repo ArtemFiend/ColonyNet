@@ -1,0 +1,56 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Models and exports
+*.pt
+*.pt.*
+*.pth
+*.ckpt
+*.bin
+*.onnx
+*.safetensors
+*.weights
+*.engine
+*.tflite
+*.pb
+*.h5
+*.hdf5
+*.keras
+*.pkl
+*.pickle
+*.joblib
+*.mlmodel
+build/
+dist/
+
+# Images, data, and reports
+data/
+outputs/
+runs/
+*.db
+*.sqlite*
+*.log
+*.zip
+*.xlsx
+*.docx
+*.tif
+*.tiff
+*.jpg
+*.jpeg
+*.png
+*.bmp
+!docs/assets/*.png
